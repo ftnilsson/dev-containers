@@ -1,0 +1,34 @@
+# Squid dstdomain rules. A leading "." matches the domain and all
+# subdomains; no leading dot matches that exact host only.
+# Verify/refresh this list against proxy access.log — CDN hostnames
+# (especially Microsoft's) drift over time.
+
+# --- Anthropic / Claude Code ---
+api.anthropic.com
+console.anthropic.com
+statsig.anthropic.com
+
+# --- GitHub / Copilot ---
+github.com
+api.github.com
+.githubusercontent.com
+api.githubcopilot.com
+copilot-proxy.githubusercontent.com
+.copilot-proxy.githubusercontent.com
+
+# --- npm ---
+registry.npmjs.org
+
+# --- Python / PyPI ---
+pypi.org
+files.pythonhosted.org
+
+# --- VS Code Marketplace (extension install/update) ---
+marketplace.visualstudio.com
+.gallerycdn.vsassets.io
+.vsassets.io
+.gallery.vsassets.io
+
+# --- VS Code Server (required just to let VS Code attach to the container) ---
+update.code.visualstudio.com
+.vscode-cdn.net

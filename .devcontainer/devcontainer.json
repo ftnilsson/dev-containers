@@ -1,0 +1,48 @@
+{
+  "name": "agent-sandbox",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "workspace",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "vscode",
+
+  // Every proxy-aware CLI (npm, pip, git, curl, gh, claude) picks these up.
+  "remoteEnv": {
+    "HTTP_PROXY": "http://proxy:3128",
+    "HTTPS_PROXY": "http://proxy:3128",
+    "NO_PROXY": "localhost,127.0.0.1,::1"
+  },
+
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers/features/python:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  // Runs once per container create. Add other agent-agnostic CLI installs here.
+  "postCreateCommand": "npm install -g @anthropic-ai/claude-code && gh extension install github/gh-copilot || true",
+
+  // Runs every time the container (re)starts — mints a fresh ~1h GitHub App
+  // installation token (see scripts/gh-app-token.sh) so you don't do this by
+  // hand each session. Safe no-op if .env / the key aren't set up yet.
+  "postStartCommand": "bash .devcontainer/scripts/gh-app-token.sh || true",
+
+  "customizations": {
+    "vscode": {
+      // VS Code extensions (e.g. GitHub Copilot) run in an extension host
+      // process that does NOT automatically inherit shell env vars, so the
+      // proxy has to be set here too.
+      "settings": {
+        "http.proxy": "http://proxy:3128",
+        "http.proxyStrictSSL": true,
+        "http.proxySupport": "on"
+      },
+      "extensions": [
+        "GitHub.copilot",
+        "GitHub.copilot-chat"
+        // Add the Claude Code extension id here too if/when you use it —
+        // verify the exact marketplace id before relying on it.
+      ]
+    }
+  }
+}

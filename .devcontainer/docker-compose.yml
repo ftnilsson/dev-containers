@@ -1,0 +1,52 @@
+services:
+  workspace:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    networks:
+      - internal          # NO route to the internet — that's the point
+    depends_on:
+      - proxy
+    env_file:
+      - ../.env            # gitignored — GH_APP_ID, GH_APP_INSTALLATION_ID, ANTHROPIC_API_KEY, ...
+    environment:
+      HTTP_PROXY: http://proxy:3128
+      HTTPS_PROXY: http://proxy:3128
+      NO_PROXY: localhost,127.0.0.1,::1
+      GH_APP_PRIVATE_KEY_PATH: /run/secrets/github-app-key.pem
+    volumes:
+      - ..:/workspace:cached
+      # On an SELinux host/podman machine (e.g. Fedora), append ":Z" instead:
+      # - ..:/workspace:cached,Z
+      # Private key lives OUTSIDE the repo on the host; never baked into the
+      # image or committed. Point GH_APP_PRIVATE_KEY_HOST_PATH at it in .env.
+      - ${GH_APP_PRIVATE_KEY_HOST_PATH}:/run/secrets/github-app-key.pem:ro
+      # Persist auth/config across container rebuilds (named volumes live in
+      # Podman's storage, not in the repo).
+      - claude-config:/home/vscode/.claude
+      - gh-config:/home/vscode/.config/gh
+    command: sleep infinity
+
+  proxy:
+    build:
+      context: ./proxy
+    networks:
+      - internal           # reachable by workspace
+      - egress             # this is the only service with a route out
+    volumes:
+      - ./proxy/squid.conf:/etc/squid/squid.conf:ro
+      - ./proxy/allowlist.txt:/etc/squid/allowlist.txt:ro
+    restart: unless-stopped
+
+networks:
+  # internal:true = Podman/Docker gives this network no default gateway to
+  # the outside world. Even a tool that ignores HTTP(S)_PROXY, or tries raw
+  # DNS/sockets, has nowhere to send packets from the workspace container.
+  internal:
+    internal: true
+  egress: {}
+
+volumes:
+  claude-config:
+  gh-config:
