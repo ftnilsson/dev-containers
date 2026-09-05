@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        DOTNET_VERSION: ${DOTNET_VERSION:-8.0}
     init: true
     networks:
       - internal          # NO route to the internet — that's the point

@@ -23,6 +23,10 @@ registry.npmjs.org
 pypi.org
 files.pythonhosted.org
 
+# --- .NET / NuGet (needed at runtime for `dotnet restore`, not just build) ---
+api.nuget.org
+.nuget.org
+
 # --- VS Code Marketplace (extension install/update) ---
 marketplace.visualstudio.com
 .gallerycdn.vsassets.io
