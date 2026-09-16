@@ -2,6 +2,10 @@
 # subdomains; no leading dot matches that exact host only.
 # Verify/refresh this list against proxy access.log — CDN hostnames
 # (especially Microsoft's) drift over time.
+#
+# IMPORTANT: don't list a host AND a wildcard that already covers it (e.g.
+# "api.nuget.org" alongside ".nuget.org") — Squid treats that as a FATAL
+# config error and refuses to start at all, not just a redundant rule.
 
 # --- Anthropic / Claude Code ---
 api.anthropic.com
@@ -13,8 +17,6 @@ github.com
 api.github.com
 .githubusercontent.com
 api.githubcopilot.com
-copilot-proxy.githubusercontent.com
-.copilot-proxy.githubusercontent.com
 
 # --- npm ---
 registry.npmjs.org
@@ -24,14 +26,11 @@ pypi.org
 files.pythonhosted.org
 
 # --- .NET / NuGet (needed at runtime for `dotnet restore`, not just build) ---
-api.nuget.org
 .nuget.org
 
 # --- VS Code Marketplace (extension install/update) ---
 marketplace.visualstudio.com
-.gallerycdn.vsassets.io
 .vsassets.io
-.gallery.vsassets.io
 
 # --- VS Code Server (required just to let VS Code attach to the container) ---
 update.code.visualstudio.com
