@@ -8,8 +8,10 @@ set -euo pipefail
 : "${GH_APP_INSTALLATION_ID:?Set GH_APP_INSTALLATION_ID in .env}"
 : "${GH_APP_PRIVATE_KEY_PATH:?Set GH_APP_PRIVATE_KEY_PATH (mounted key file)}"
 
-if [ ! -f "$GH_APP_PRIVATE_KEY_PATH" ]; then
-  echo "gh-app-token: private key not found at $GH_APP_PRIVATE_KEY_PATH — skipping." >&2
+# -s (not just -f): the default mount is an empty placeholder file when
+# GH_APP_PRIVATE_KEY_HOST_PATH isn't set yet, so "exists" alone isn't enough.
+if [ ! -s "$GH_APP_PRIVATE_KEY_PATH" ]; then
+  echo "gh-app-token: no private key configured (GH_APP_PRIVATE_KEY_HOST_PATH unset in .env) — skipping." >&2
   exit 0
 fi
 

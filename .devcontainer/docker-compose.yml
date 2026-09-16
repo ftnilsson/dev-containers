@@ -11,7 +11,10 @@ services:
     depends_on:
       - proxy
     env_file:
-      - ../.env            # gitignored — GH_APP_ID, GH_APP_INSTALLATION_ID, ANTHROPIC_API_KEY, ...
+      # Relative to THIS file's directory, not the repo root — Compose's own
+      # ${VAR} substitution below also only reads .env from here, so this is
+      # the one place your .env has to live for both to see it.
+      - .env
     environment:
       HTTP_PROXY: http://proxy:3128
       HTTPS_PROXY: http://proxy:3128
@@ -23,7 +26,11 @@ services:
       # - ..:/workspace:cached,Z
       # Private key lives OUTSIDE the repo on the host; never baked into the
       # image or committed. Point GH_APP_PRIVATE_KEY_HOST_PATH at it in .env.
-      - ${GH_APP_PRIVATE_KEY_HOST_PATH}:/run/secrets/github-app-key.pem:ro
+      # Unset/empty falls back to a harmless empty placeholder (committed,
+      # not a real secret) so the build doesn't break before you've set up
+      # GitHub App auth — gh-app-token.sh treats an empty file as "not
+      # configured yet" and skips quietly instead of erroring.
+      - ${GH_APP_PRIVATE_KEY_HOST_PATH:-./secrets/placeholder.pem}:/run/secrets/github-app-key.pem:ro
       # Persist auth/config across container rebuilds (named volumes live in
       # Podman's storage, not in the repo).
       - claude-config:/home/vscode/.claude

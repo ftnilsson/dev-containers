@@ -49,19 +49,53 @@ something breaks, you know which layer it's in.
 errors. If this doesn't work, nothing later in this guide will either — fix
 it here first.
 
-### 2. Install a Compose implementation
+### 2. Make sure `podman-compose` resolves on PATH
 
 VS Code's Dev Containers extension needs a `docker-compose`-compatible
-binary on your `PATH` (this repo's devcontainer uses Compose, for the two
-services `workspace` + `proxy`). Pick one:
+command on your `PATH` (this repo's devcontainer uses Compose, for the two
+services `workspace` + `proxy`).
 
-- `pip install podman-compose` (needs Python), or
-- Podman Desktop → Settings → Extensions → install the **Compose**
-  extension, which installs one for you without needing Python separately.
+First check whether Podman already has one wired up:
 
-**Verify:** open a *new* terminal (so `PATH` picks up the install) and run
-`podman-compose --version`. If that fails, restart your terminal (and VS
-Code) — a fresh install often isn't on `PATH` in already-open shells.
+```bash
+podman compose version
+```
+
+Recent Podman versions ship a built-in `compose` subcommand that finds (or
+offers to auto-download) an external provider — it may just work already,
+especially if Docker Desktop happens to also be installed (it'll reuse
+Docker's `docker-compose.exe`). If that prints a version, you don't need
+Python or `pip install podman-compose` at all.
+
+The catch: VS Code's `dev.containers.dockerComposePath` setting (next step)
+needs a single **executable name**, and `podman compose` is two words — it
+won't resolve as one. Point it at a tiny wrapper instead of a real
+standalone binary. In the same folder as `podman.exe` (already on `PATH` —
+check with `Get-Command podman`), create two files, one per shell that
+might invoke it:
+
+`podman-compose.cmd` (what VS Code/PowerShell/cmd.exe will actually run):
+```bat
+@echo off
+podman compose %*
+```
+
+`podman-compose` (no extension, for Git Bash / MSYS terminals — needs
+`chmod +x`):
+```bash
+#!/bin/sh
+exec podman compose "$@"
+```
+
+**Verify:** open a *new* terminal (so `PATH` picks up the new files) and
+run `podman-compose version` — and, on Windows, also
+`podman-compose.cmd version` since that's the literal command VS Code will
+invoke. Both should print the same output as step 1's `podman compose
+version`.
+
+(No Podman-Desktop-bundled provider and no Docker Desktop either? Install
+Python, then `pip install podman-compose` for a real standalone binary
+instead of the wrapper above.)
 
 ### 3. Point VS Code at Podman instead of Docker
 
@@ -80,11 +114,25 @@ User Settings (JSON)") and add:
 
 Restart VS Code after changing these so the extension picks them up.
 
-### 4. Sanity-check the build outside VS Code first
+### 4. Create `.env`, then sanity-check the build outside VS Code
 
-Before letting VS Code drive it, build the two containers by hand from a
-terminal in this project's root — it isolates "Podman/Compose is broken"
-from "the VS Code extension is misconfigured":
+Compose reads this file just to parse the file at all (even to run
+`config`/`build`), so this has to happen before anything else touches
+Compose — including the check right below:
+
+```bash
+cp .devcontainer/.env.example .devcontainer/.env
+```
+
+It must live next to `docker-compose.yml` (i.e. `.devcontainer/.env`), not
+the repo root — Compose's own `${VAR}` substitution only reads `.env` from
+its own directory. Leave the values blank for now to try the sandbox
+itself first; fill them in later per **Authentication** below when the
+agent needs to actually talk to GitHub/Anthropic.
+
+Now build the two containers by hand from a terminal in this project's
+root — it isolates "Podman/Compose is broken" from "the VS Code extension
+is misconfigured":
 
 ```bash
 podman-compose -f .devcontainer/docker-compose.yml build
@@ -96,10 +144,8 @@ extension will hit the exact same error, just with a less useful message.
 
 ## First-time setup
 
-1. Copy `.env.example` to `.env` (gitignored) and fill in what you need —
-   see **Authentication** below. You can leave everything blank to try the
-   sandbox itself first; auth is only needed for the agent to actually talk
-   to GitHub/Anthropic.
+1. `.env` is already created from step 4 above — go fill in the values you
+   need now if you skipped that; see **Authentication** below.
 2. In VS Code, open this folder, then Command Palette
    (`Ctrl+Shift+P`) → **Dev Containers: Reopen in Container**. First build
    takes a few minutes (installs Node/Python/`gh`/.NET).
