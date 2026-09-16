@@ -13,8 +13,12 @@ RUN apt-get update \
 # official script rather than a devcontainer feature so it's configurable
 # from .env instead of a hardcoded value in this file.
 ARG DOTNET_VERSION=8.0
-RUN curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
- && bash /tmp/dotnet-install.sh --channel "${DOTNET_VERSION}" --install-dir /usr/share/dotnet \
+RUN case "${DOTNET_VERSION}" in \
+      *.*) CHANNEL="${DOTNET_VERSION}" ;; \
+      *) CHANNEL="${DOTNET_VERSION}.0" ;; \
+    esac \
+ && curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
+ && bash /tmp/dotnet-install.sh --channel "${CHANNEL}" --install-dir /usr/share/dotnet \
  && rm /tmp/dotnet-install.sh \
  && ln -s /usr/share/dotnet/dotnet /usr/local/bin/dotnet
 ENV DOTNET_ROOT=/usr/share/dotnet \
