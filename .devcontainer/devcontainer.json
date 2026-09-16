@@ -6,6 +6,22 @@
   "shutdownAction": "stopCompose",
   "remoteUser": "vscode",
 
+  // Workaround for a Podman/netavark bug: an "internal: true" network's
+  // FORWARD-accept rule only covers OTHER netavark networks, not itself —
+  // so containers on the SAME internal network (workspace <-> proxy) get
+  // silently dropped by the default-drop FORWARD chain, even though the
+  // network's outbound-WAN blocking (the actual point of internal:true)
+  // works correctly. Runs on the host before every container start and
+  // self-heals even after a Podman machine reboot wipes the rule; harmless
+  // no-op once the rule already exists. "podman-machine-agentic" is this
+  // machine's Podman machine name (check/adjust via `podman machine list`
+  // if that ever changes) — there's no usable default machine name here.
+  "initializeCommand": [
+    "podman", "machine", "ssh", "podman-machine-agentic", "--",
+    "sh", "-c",
+    "nft list chain ip filter NETAVARK_FORWARD 2>/dev/null | grep -q '10.89.0.0/16 ip daddr 10.89.0.0/16 accept' || sudo nft add rule ip filter NETAVARK_FORWARD ip saddr 10.89.0.0/16 ip daddr 10.89.0.0/16 accept"
+  ],
+
   // Every proxy-aware CLI (npm, pip, git, curl, gh, claude) picks these up.
   "remoteEnv": {
     "HTTP_PROXY": "http://proxy:3128",
