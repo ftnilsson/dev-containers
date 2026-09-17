@@ -269,13 +269,28 @@ The private key is mounted **only into the `proxy` container** (never
 `workspace` — see **Isolation boundary** above), where
 [gh-app-token-daemon.sh](.devcontainer/proxy/gh-app-token-daemon.sh) mints
 a fresh ~1h installation token in the background and writes just the
-token to a small volume `workspace` can read but not write.
+token to a small volume `workspace` can read but not write. It polls the
+token's age every ~60s and re-mints once it's old, rather than trusting one
+long blocking `sleep` — a laptop that suspends mid-sleep can otherwise
+leave a stale, expired token sitting for however long it was asleep before
+noticing.
+
 [gh-app-token.sh](.devcontainer/scripts/gh-app-token.sh) — baked into the
 `workspace` image, run automatically on every container start via
-`postStartCommand` — picks that up and hands it to `gh auth login` +
-`gh auth setup-git` (so plain `git push`/`pull` use it too). Re-run
-`gh-app-token.sh` by hand in the container terminal any time you want to
-pick up a freshly-minted token without waiting for the next start.
+`postStartCommand` — picks that up two ways:
+- Configures a **git credential helper** that reads the token file live on
+  every single `git` operation (`push`/`pull`/`clone`/...) — no caching,
+  so it's never stale between polls.
+- Runs `gh auth login --with-token` once immediately, then launches a
+  detached background watcher (`setsid`, its own session — plain
+  `disown`/`nohup` weren't enough to survive the exec session closing, in
+  testing) that re-imports whenever the proxy mints a newer token. `gh`
+  itself (as opposed to plain git) caches the token rather than reading it
+  live, so this is what keeps `gh pr create`/`gh api`/etc. working across
+  a long-running container without needing a restart.
+
+Re-run `gh-app-token.sh` by hand in the container terminal any time you
+want to force an immediate re-sync.
 
 The private key never gets baked into any image or committed — it's
 bind-mounted read-only from the host path you set above, and an agent

@@ -44,7 +44,28 @@ mint_once() {
   mv "${TOKEN_FILE}.tmp" "$TOKEN_FILE"
 }
 
+# Poll every ~60s and refresh based on the token file's actual age, rather
+# than one long blocking `sleep 2700`. A single long sleep is fragile on a
+# machine that suspends (laptop sleep, Podman machine VM pause): time spent
+# suspended doesn't reliably count, so a 45-minute sleep can end up
+# stretching far past the token's real ~1h validity before it wakes up,
+# silently leaving `gh` running on an expired token for however long the
+# host was asleep. Checking age on each short poll means a resume from
+# sleep gets caught within ~60s instead of waiting out the rest of a sleep
+# that's already run long past its intended duration.
+REFRESH_AFTER=2700   # ~45 min — comfortably inside the token's ~1h validity
+POLL_INTERVAL=60
+
 while true; do
-  mint_once || echo "gh-app-token-daemon: mint failed or not configured, will retry" >&2
-  sleep 2700   # ~45 min — comfortably inside the token's ~1h validity
+  age=999999
+  if [ -f "$TOKEN_FILE" ]; then
+    mtime=$(stat -c %Y "$TOKEN_FILE" 2>/dev/null || echo 0)
+    age=$(( $(date +%s) - mtime ))
+  fi
+
+  if [ "$age" -ge "$REFRESH_AFTER" ]; then
+    mint_once || echo "gh-app-token-daemon: mint failed or not configured, will retry" >&2
+  fi
+
+  sleep "$POLL_INTERVAL"
 done
