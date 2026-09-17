@@ -11,6 +11,7 @@
 api.anthropic.com
 console.anthropic.com
 statsig.anthropic.com
+platform.claude.com
 
 # --- GitHub / Copilot ---
 github.com
