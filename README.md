@@ -114,6 +114,48 @@ User Settings (JSON)") and add:
 
 Restart VS Code after changing these so the extension picks them up.
 
+### 3.5. Known Podman/netavark bug: provision the network-fix watcher
+
+Podman's `internal: true` networks (what isolates `workspace` from the
+internet — see **Architecture**) have a bug: the firewall rule Podman
+generates to allow traffic *within* that network only covers *other*
+Podman networks, not the network's own subnet. Net effect: `workspace` and
+`proxy` silently can't reach each other at all, even though the intended
+behavior (`workspace` can't reach the *outside* world directly) works
+correctly. This isn't fixable from `docker-compose.yml`/`squid.conf` — it's
+a host-level firewall gap.
+
+[devcontainer.json](.devcontainer/devcontainer.json)'s `initializeCommand`
+works around it by launching a small watcher, on the host, before every
+container start — it waits for Podman to (re)create the broken firewall
+chain (which only exists while a container is actually attached to an
+internal network) and patches it the moment it appears, then exits. That
+watcher script has to live on the Podman machine VM itself (nftables state
+is VM-local, not something a repo file can reach into), so it's **not**
+part of this repo and needs provisioning once per VM:
+
+```bash
+podman machine ssh podman-machine-agentic -- 'cat > /root/.netfix.sh' <<'EOF'
+#!/bin/sh
+i=0
+while [ "$i" -lt 90 ]; do
+  if nft list chain ip filter NETAVARK_FORWARD 2>/dev/null | grep -q '10.89.0.0/16 ip daddr 10.89.0.0/16 accept'; then
+    exit 0
+  fi
+  nft add rule ip filter NETAVARK_FORWARD ip saddr 10.89.0.0/16 ip daddr 10.89.0.0/16 accept 2>/dev/null
+  i=$((i + 1))
+  sleep 1
+done
+EOF
+podman machine ssh podman-machine-agentic -- chmod +x /root/.netfix.sh
+```
+
+You only need this once — it's already done on this machine. Re-run it if
+the Podman machine VM is ever recreated (`podman machine rm` + `init`), or
+if you set this repo up on a different machine. If `podman-machine-agentic`
+isn't your VM's name, check `podman machine list` and adjust both here and
+in `devcontainer.json`'s `initializeCommand`.
+
 ### 4. Create `.env`, then sanity-check the build outside VS Code
 
 Compose reads this file just to parse the file at all (even to run

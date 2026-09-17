@@ -9,17 +9,26 @@
   // Workaround for a Podman/netavark bug: an "internal: true" network's
   // FORWARD-accept rule only covers OTHER netavark networks, not itself —
   // so containers on the SAME internal network (workspace <-> proxy) get
-  // silently dropped by the default-drop FORWARD chain, even though the
-  // network's outbound-WAN blocking (the actual point of internal:true)
-  // works correctly. Runs on the host before every container start and
-  // self-heals even after a Podman machine reboot wipes the rule; harmless
-  // no-op once the rule already exists. "podman-machine-agentic" is this
-  // machine's Podman machine name (check/adjust via `podman machine list`
-  // if that ever changes) — there's no usable default machine name here.
+  // silently dropped, even though internal:true's actual point (blocking
+  // outbound WAN) works fine. The NETAVARK_FORWARD chain this needs to
+  // patch only exists WHILE a container is attached to an internal
+  // network — it's gone as soon as everything's stopped — so a plain
+  // pre-up check (this used to be one) fails outright on a from-cold
+  // start instead of no-op'ing, which broke every "Reopen in Container"
+  // after containers had fully stopped.
+  //
+  // Fix: launch a short-lived, detached background watcher (already
+  // provisioned at /root/.netfix.sh on the Podman machine VM — see
+  // README) on the HOST before every container start. It polls for the
+  // chain to appear as THIS "up" call creates it, patches the rule the
+  // moment it does (usually ~1-2s), and self-terminates. initializeCommand
+  // itself returns immediately either way, so it never blocks or fails
+  // "up". "podman-machine-agentic" is this machine's Podman machine name
+  // (check/adjust via `podman machine list` if that ever changes) —
+  // there's no usable default machine name here.
   "initializeCommand": [
     "podman", "machine", "ssh", "podman-machine-agentic", "--",
-    "sh", "-c",
-    "nft list chain ip filter NETAVARK_FORWARD 2>/dev/null | grep -q '10.89.0.0/16 ip daddr 10.89.0.0/16 accept' || sudo nft add rule ip filter NETAVARK_FORWARD ip saddr 10.89.0.0/16 ip daddr 10.89.0.0/16 accept"
+    "nohup /root/.netfix.sh >/tmp/netfix.log 2>&1 & disown; exit 0"
   ],
 
   // Every proxy-aware CLI (npm, pip, git, curl, gh, claude) picks these up.
