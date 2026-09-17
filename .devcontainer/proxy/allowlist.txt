@@ -17,6 +17,7 @@ github.com
 api.github.com
 .githubusercontent.com
 api.githubcopilot.com
+.individual.githubcopilot.com
 
 # --- npm ---
 registry.npmjs.org
@@ -31,6 +32,11 @@ files.pythonhosted.org
 # --- VS Code Marketplace (extension install/update) ---
 marketplace.visualstudio.com
 .vsassets.io
+
+# --- TLS certificate revocation checks (CRL/OCSP) ---
+# Soft-fail if blocked (most TLS stacks proceed anyway), but allowing it
+# avoids retry noise/latency on every HTTPS connection that checks.
+.digicert.com
 
 # --- VS Code Server (required just to let VS Code attach to the container) ---
 update.code.visualstudio.com
