@@ -45,7 +45,11 @@
   },
 
   // Runs once per container create. Add other agent-agnostic CLI installs here.
-  "postCreateCommand": "npm install -g @anthropic-ai/claude-code && gh extension install github/gh-copilot || true",
+  // The chown is needed because Podman creates named volumes (claude-config,
+  // gh-config) owned by root, but the container runs as the non-root vscode
+  // user — without this, `claude login` / `gh auth login` fail with
+  // "permission denied" writing into those mounted directories.
+  "postCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.claude /home/vscode/.config/gh && npm install -g @anthropic-ai/claude-code && gh extension install github/gh-copilot || true",
 
   // Runs every time the container (re)starts — mints a fresh ~1h GitHub App
   // installation token (see scripts/gh-app-token.sh) so you don't do this by
