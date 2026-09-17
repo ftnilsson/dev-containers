@@ -3,10 +3,17 @@
 # internet access; only the *running* container is egress-restricted.
 FROM mcr.microsoft.com/devcontainers/base:debian
 
-# jq: used by scripts/gh-app-token.sh to parse the GitHub App token response.
+# jq: handy for general use inside the sandbox.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends jq \
  && rm -rf /var/lib/apt/lists/*
+
+# Sandbox tooling scripts, baked into the image rather than read from
+# /workspace — /workspace is intentionally just the workspace/ subdirectory
+# (see docker-compose.yml), not this whole repo, so .devcontainer/ (these
+# scripts' source location on the host) isn't reachable at runtime.
+COPY scripts/gh-app-token.sh scripts/verify-egress.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/gh-app-token.sh /usr/local/bin/verify-egress.sh
 
 # .NET SDK — version set via DOTNET_VERSION in .env (build-time arg, so it
 # comes from the same file as everything else). Installed with Microsoft's

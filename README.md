@@ -20,6 +20,24 @@ silently bypassing the allowlist. That's what makes this agent-agnostic:
 nothing here depends on Claude Code, Copilot, or any other tool
 cooperating.
 
+### Isolation boundary
+
+The network allowlist only matters if whatever's running inside
+`workspace` — an AI agent included — can't also just edit the rules that
+define it. Two things enforce that:
+
+- **`/workspace` is `workspace/`, not this repo's root.** The container
+  only ever sees the [workspace/](workspace/) subdirectory — put the
+  project(s) an agent should work on in there. `.devcontainer/` itself
+  (this compose file, `squid.conf`, `allowlist.txt`, `.env`, the GitHub
+  App's private key) and this repo's own `.git` are never mounted into the
+  container at all, so nothing running inside it can read or edit its own
+  sandbox's rules for the next rebuild.
+- **The GitHub App's private key lives only in the `proxy` container**,
+  which the agent has no shell/exec access to (see **Authentication**
+  below) — only a short-lived, auto-refreshed token ever reaches
+  `workspace`, never the signing key itself.
+
 ## Prerequisites: Podman + VS Code
 
 Docker Desktop is the path VS Code's Dev Containers extension expects by
@@ -191,10 +209,12 @@ extension will hit the exact same error, just with a less useful message.
 2. In VS Code, open this folder, then Command Palette
    (`Ctrl+Shift+P`) → **Dev Containers: Reopen in Container**. First build
    takes a few minutes (installs Node/Python/`gh`/.NET).
-3. In the container terminal, run
+3. In the container terminal, run `verify-egress.sh` to confirm the
+   allowlist and network isolation are actually working before you trust
+   the sandbox with anything. (Baked into the image at
    [.devcontainer/scripts/verify-egress.sh](.devcontainer/scripts/verify-egress.sh)
-   to confirm the allowlist and network isolation are actually working
-   before you trust the sandbox with anything.
+   — not reachable at that path *inside* the container, since
+   `.devcontainer/` isn't mounted there; that's the point.)
 
 ### If "Reopen in Container" fails
 
@@ -245,14 +265,22 @@ in the container.
 4. Fill in `.env`: `GH_APP_ID`, `GH_APP_INSTALLATION_ID`,
    `GH_APP_PRIVATE_KEY_HOST_PATH` (host path to the `.pem`).
 
-[.devcontainer/scripts/gh-app-token.sh](.devcontainer/scripts/gh-app-token.sh)
-mints a fresh installation token and hands it to `gh auth login` +
-`gh auth setup-git` (so plain `git push`/`pull` use it too). It runs
-automatically on every container start; re-run it by hand if a session
-outlives the ~1h token.
+The private key is mounted **only into the `proxy` container** (never
+`workspace` — see **Isolation boundary** above), where
+[gh-app-token-daemon.sh](.devcontainer/proxy/gh-app-token-daemon.sh) mints
+a fresh ~1h installation token in the background and writes just the
+token to a small volume `workspace` can read but not write.
+[gh-app-token.sh](.devcontainer/scripts/gh-app-token.sh) — baked into the
+`workspace` image, run automatically on every container start via
+`postStartCommand` — picks that up and hands it to `gh auth login` +
+`gh auth setup-git` (so plain `git push`/`pull` use it too). Re-run
+`gh-app-token.sh` by hand in the container terminal any time you want to
+pick up a freshly-minted token without waiting for the next start.
 
-The private key never gets baked into the image or committed — it's
-bind-mounted read-only from the host path you set above.
+The private key never gets baked into any image or committed — it's
+bind-mounted read-only from the host path you set above, and an agent
+running inside `workspace` never has access to it, only to whatever
+short-lived token is currently minted.
 
 ### Claude Code
 

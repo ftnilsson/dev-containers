@@ -51,10 +51,13 @@
   // "permission denied" writing into those mounted directories.
   "postCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.claude /home/vscode/.config/gh && npm install -g @anthropic-ai/claude-code && gh extension install github/gh-copilot || true",
 
-  // Runs every time the container (re)starts — mints a fresh ~1h GitHub App
-  // installation token (see scripts/gh-app-token.sh) so you don't do this by
-  // hand each session. Safe no-op if .env / the key aren't set up yet.
-  "postStartCommand": "bash .devcontainer/scripts/gh-app-token.sh || true",
+  // Runs every time the container (re)starts — picks up the GitHub App
+  // installation token the PROXY container mints and refreshes on its own
+  // (see .devcontainer/proxy/gh-app-token-daemon.sh) and hands it to `gh`.
+  // Baked into the image at build time (see Dockerfile), not read from
+  // /workspace — .devcontainer/ isn't mounted there. Safe no-op if .env /
+  // the key aren't set up yet, or the proxy hasn't minted a token yet.
+  "postStartCommand": "gh-app-token.sh || true",
 
   "customizations": {
     "vscode": {

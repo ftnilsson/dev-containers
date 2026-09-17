@@ -19,18 +19,20 @@ services:
       HTTP_PROXY: http://proxy:3128
       HTTPS_PROXY: http://proxy:3128
       NO_PROXY: localhost,127.0.0.1,::1
-      GH_APP_PRIVATE_KEY_PATH: /run/secrets/github-app-key.pem
     volumes:
-      - ..:/workspace:cached
+      # Only this subdirectory is visible inside the container — NOT the
+      # repo root. Isolation boundary: .devcontainer/ (this compose file,
+      # squid.conf, allowlist.txt, .env, the App's private key) must stay
+      # unreachable from whatever runs in here, or an agent operating
+      # inside the container could read secrets or edit its own sandbox's
+      # rules for the next rebuild. See root README's "Isolation boundary".
+      - ../workspace:/workspace:cached
       # On an SELinux host/podman machine (e.g. Fedora), append ":Z" instead:
-      # - ..:/workspace:cached,Z
-      # Private key lives OUTSIDE the repo on the host; never baked into the
-      # image or committed. Point GH_APP_PRIVATE_KEY_HOST_PATH at it in .env.
-      # Unset/empty falls back to a harmless empty placeholder (committed,
-      # not a real secret) so the build doesn't break before you've set up
-      # GitHub App auth — gh-app-token.sh treats an empty file as "not
-      # configured yet" and skips quietly instead of erroring.
-      - ${GH_APP_PRIVATE_KEY_HOST_PATH:-./secrets/placeholder.pem}:/run/secrets/github-app-key.pem:ro
+      # - ../workspace:/workspace:cached,Z
+      # Read-only: the proxy container mints and refreshes this token (see
+      # proxy/gh-app-token-daemon.sh) — the signing key itself never enters
+      # this container, only the short-lived result.
+      - gh-token-vol:/gh-token-vol:ro
       # Persist auth/config across container rebuilds (named volumes live in
       # Podman's storage, not in the repo).
       - claude-config:/home/vscode/.claude
@@ -43,9 +45,23 @@ services:
     networks:
       - internal           # reachable by workspace
       - egress             # this is the only service with a route out
+    env_file:
+      - .env
+    environment:
+      GH_APP_PRIVATE_KEY_PATH: /run/secrets/github-app-key.pem
     volumes:
       - ./proxy/squid.conf:/etc/squid/squid.conf:ro
       - ./proxy/allowlist.txt:/etc/squid/allowlist.txt:ro
+      # Private key lives OUTSIDE the repo on the host; never baked into the
+      # image or committed. Point GH_APP_PRIVATE_KEY_HOST_PATH at it in .env.
+      # Unset/empty falls back to a harmless empty placeholder (committed,
+      # not a real secret) so the build doesn't break before you've set up
+      # GitHub App auth — the token daemon treats an empty file as "not
+      # configured yet" and skips quietly instead of erroring. This mount
+      # is on the PROXY container, not workspace: the agent's container
+      # never has read access to the raw key, only to the minted token.
+      - ${GH_APP_PRIVATE_KEY_HOST_PATH:-./secrets/placeholder.pem}:/run/secrets/github-app-key.pem:ro
+      - gh-token-vol:/gh-token-vol
     restart: unless-stopped
 
 networks:
@@ -59,3 +75,4 @@ networks:
 volumes:
   claude-config:
   gh-config:
+  gh-token-vol:
