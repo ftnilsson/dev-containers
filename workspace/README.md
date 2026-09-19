@@ -10,3 +10,8 @@ there has no read or write access to the sandbox's own proxy allowlist,
 compose file, Dockerfile, secrets, or this repo's git history — only to
 whatever you put in `workspace/`. See the root [README.md](../README.md)'s
 **Isolation boundary** section for why that separation exists.
+
+[AGENTS.md](AGENTS.md) here tells any agent (Claude Code, Copilot, etc.)
+operating in the container about that boundary and the network allowlist —
+it's a cross-tool standard both read automatically, applying to whatever
+project(s) you add under this directory.
