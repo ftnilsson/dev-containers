@@ -327,6 +327,11 @@ fully de-identified the way GitHub repo access and Claude Code can be.
   want both, `gh auth login` a second time as yourself and use
   `gh auth switch` to toggle between your personal account (for
   `gh copilot`) and the App token (for scripted repo actions).
+- **`copilot` CLI** (`@github/copilot` — the standalone agentic CLI, not
+  the `gh` extension above): installed via `postCreateCommand`, needs Node
+  22+ (set in `devcontainer.json`'s node feature). Has its own separate
+  auth — run `copilot` once and follow its login prompt; same "your
+  personal seat" caveat as the rest of Copilot applies.
 
 ## Extending the allowlist
 

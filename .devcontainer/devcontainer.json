@@ -39,7 +39,9 @@
   },
 
   "features": {
-    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    // 22, not 20: the standalone GitHub Copilot CLI (@github/copilot, below)
+    // requires Node 22+.
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
     "ghcr.io/devcontainers/features/python:1": {},
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
@@ -49,7 +51,10 @@
   // gh-config) owned by root, but the container runs as the non-root vscode
   // user — without this, `claude login` / `gh auth login` fail with
   // "permission denied" writing into those mounted directories.
-  "postCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.claude /home/vscode/.config/gh && npm install -g @anthropic-ai/claude-code && gh extension install github/gh-copilot || true",
+  // @github/copilot is the standalone GitHub Copilot CLI (an agentic
+  // terminal tool, like claude-code) — separate from the `gh copilot`
+  // extension right after it, which is the older suggest/explain-only tool.
+  "postCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.claude /home/vscode/.config/gh && npm install -g @anthropic-ai/claude-code @github/copilot && gh extension install github/gh-copilot || true",
 
   // Runs every time the container (re)starts — picks up the GitHub App
   // installation token the PROXY container mints and refreshes on its own
