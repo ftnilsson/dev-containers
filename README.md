@@ -52,14 +52,17 @@ something breaks, you know which layer it's in.
   Linux VM, so after installing, initialize and start it:
 
   ```bash
-  podman machine init
-  podman machine start
+  podman machine init podman-machine-agentic
+  podman machine start podman-machine-agentic
   ```
+
+  The name `podman-machine-agentic` is what `devcontainer.json`'s
+  `initializeCommand` (and the step 3.5 provisioning commands) expect —
+  use it exactly, or update those references to match your chosen name.
 
   If `podman machine init` complains about WSL2, install it first
   (`wsl --install`, then reboot) and try again.
-- macOS: `brew install podman`, then the same `podman machine init` /
-  `podman machine start`.
+- macOS: `brew install podman`, then the same two commands above.
 - Linux: install `podman` via your package manager — no VM/machine step
   needed, it uses the host kernel directly.
 
