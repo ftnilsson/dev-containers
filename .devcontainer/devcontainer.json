@@ -6,29 +6,14 @@
   "shutdownAction": "stopCompose",
   "remoteUser": "vscode",
 
-  // Workaround for a Podman/netavark bug: an "internal: true" network's
-  // FORWARD-accept rule only covers OTHER netavark networks, not itself —
-  // so containers on the SAME internal network (workspace <-> proxy) get
-  // silently dropped, even though internal:true's actual point (blocking
-  // outbound WAN) works fine. The NETAVARK_FORWARD chain this needs to
-  // patch only exists WHILE a container is attached to an internal
-  // network — it's gone as soon as everything's stopped — so a plain
-  // pre-up check (this used to be one) fails outright on a from-cold
-  // start instead of no-op'ing, which broke every "Reopen in Container"
-  // after containers had fully stopped.
-  //
-  // Fix: launch a short-lived, detached background watcher (already
-  // provisioned at /root/.netfix.sh on the Podman machine VM — see
-  // README) on the HOST before every container start. It polls for the
-  // chain to appear as THIS "up" call creates it, patches the rule the
-  // moment it does (usually ~1-2s), and self-terminates. initializeCommand
-  // itself returns immediately either way, so it never blocks or fails
-  // "up". "podman-machine-agentic" is this machine's Podman machine name
-  // (check/adjust via `podman machine list` if that ever changes) —
-  // there's no usable default machine name here.
+  // Host-side setup that only matters for Podman (a netavark bug — see the
+  // script for detail); a clean no-op under Docker. Keeping this logic in
+  // its own script (rather than inline here) is what lets this one
+  // devcontainer.json serve both engines — see README's "Using Docker
+  // instead of Podman".
   "initializeCommand": [
-    "podman", "machine", "ssh", "podman-machine-agentic", "--",
-    "nohup /root/.netfix.sh >/tmp/netfix.log 2>&1 & disown; exit 0"
+    "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+    "-File", ".devcontainer/scripts/host-initialize.ps1"
   ],
 
   // Every proxy-aware CLI (npm, pip, git, curl, gh, claude) picks these up.
@@ -47,10 +32,10 @@
   },
 
   // Runs once per container create. Add other agent-agnostic CLI installs here.
-  // The chown is needed because Podman creates named volumes (claude-config,
-  // gh-config) owned by root, but the container runs as the non-root vscode
-  // user — without this, `claude login` / `gh auth login` fail with
-  // "permission denied" writing into those mounted directories.
+  // The chown is needed because named volumes (claude-config, gh-config) get
+  // created owned by root on both Podman and Docker, but the container runs
+  // as the non-root vscode user — without this, `claude login` / `gh auth
+  // login` fail with "permission denied" writing into those directories.
   // @github/copilot is the standalone GitHub Copilot CLI (an agentic
   // terminal tool, like claude-code) — separate from the `gh copilot`
   // extension right after it, which is the older suggest/explain-only tool.

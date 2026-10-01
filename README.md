@@ -205,6 +205,28 @@ This should complete with no errors (it'll take a few minutes the first
 time). If it fails here, fix that before opening VS Code at all — the
 extension will hit the exact same error, just with a less useful message.
 
+## Using Docker instead of Podman
+
+This same [devcontainer.json](.devcontainer/devcontainer.json) works with
+Docker Desktop too — it's not a separate setup to maintain. Docker doesn't
+have the netavark bug from step 3.5 above (that's a Podman-specific issue),
+and [host-initialize.ps1](.devcontainer/scripts/host-initialize.ps1) only
+applies that workaround when it detects Podman is actually installed,
+no-op'ing cleanly otherwise. So switching engines is just:
+
+1. Make sure Docker Desktop is installed and running (`docker info` should
+   show a server, not a connection error).
+2. In VS Code user settings, remove (or comment out)
+   `dev.containers.dockerPath` and `dev.containers.dockerComposePath` —
+   Docker is the extension's built-in default, so simply not overriding
+   these is enough. `dev.containers.gpuAvailability`/`mountWaylandSocket`,
+   if you set those per step 3.5, are harmless to leave either way.
+3. **Dev Containers: Rebuild Container.**
+
+No changes needed anywhere else — not `docker-compose.yml`, not any
+script. To switch back to Podman, restore those two settings to `podman` /
+`podman-compose` (see step 3 above) and rebuild again.
+
 ## First-time setup
 
 1. `.env` is already created from step 4 above — go fill in the values you
