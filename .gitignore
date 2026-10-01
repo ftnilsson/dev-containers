@@ -4,3 +4,13 @@
 # committed — only the empty placeholder is tracked.
 .devcontainer/secrets/*
 !.devcontainer/secrets/placeholder.pem
+
+# Anything cloned into workspace/ (the only thing mounted into the
+# container) is a separate project with its own git history — never this
+# repo's concern. Without this, `git add -A`/"Commit All" silently tracks
+# such a clone as a gitlink (a dangling, unresolvable commit-SHA pointer
+# for anyone who clones THIS repo, since there's no registered submodule
+# URL) — this already happened once.
+workspace/*
+!workspace/README.md
+!workspace/AGENTS.md
