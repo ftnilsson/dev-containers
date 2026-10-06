@@ -31,15 +31,12 @@
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
 
-  // Runs once per container create. Add other agent-agnostic CLI installs here.
-  // The chown is needed because named volumes (claude-config, gh-config) get
-  // created owned by root on both Podman and Docker, but the container runs
-  // as the non-root vscode user — without this, `claude login` / `gh auth
-  // login` fail with "permission denied" writing into those directories.
-  // @github/copilot is the standalone GitHub Copilot CLI (an agentic
-  // terminal tool, like claude-code) — separate from the `gh copilot`
-  // extension right after it, which is the older suggest/explain-only tool.
-  "postCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.claude /home/vscode/.config/gh && npm install -g @anthropic-ai/claude-code @github/copilot && gh extension install github/gh-copilot || true",
+  // Runs once per container create: fixes volume ownership and installs the
+  // agent CLIs (claude-code, and the standalone GitHub Copilot CLI) with
+  // retries. Add other agent-agnostic CLI installs in the script. Baked into
+  // the image (see Dockerfile) — see the script for why this isn't an inline
+  // `&& ... || true` chain any more (it failed silently).
+  "postCreateCommand": "post-create.sh",
 
   // Runs every time the container (re)starts — picks up the GitHub App
   // installation token the PROXY container mints and refreshes on its own
