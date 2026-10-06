@@ -268,6 +268,44 @@ it's configurable the same way secrets are: set `DOTNET_VERSION` in `.env`
 (e.g. `8.0`, `9.0`), or leave it blank for the default (8.0). Rebuild the
 container after changing it.
 
+## Bundled VS Code extensions
+
+`.vsix` files in [.devcontainer/extensions/](.devcontainer/extensions) are
+vendored into this repo and baked into the image at `/opt/vsix` — not pulled
+from GitHub or the Marketplace at runtime (the allowlist would block that
+anyway, and a pinned local copy is reproducible). Currently:
+[Agent Grove](https://github.com/ftnilsson/agent-grove/releases/tag/v0.1.0)
+0.1.0, which shows per-worktree agent status in the Source Control sidebar.
+
+[post-create.sh](.devcontainer/scripts/post-create.sh) installs them into the
+VS Code server via `install-bundled-extensions.sh` (no network needed).
+Each file's SHA-256 is pinned in
+[extensions/SHA256SUMS](.devcontainer/extensions/SHA256SUMS), and the image
+build **fails** if a file doesn't match.
+
+Agent Grove also needs hooks configured in each agent. Its own **Agent Grove:
+Install Agent Hooks** command only copies `hook.mjs` and puts a JSON snippet
+on your clipboard to merge by hand, so it can't run headlessly. Instead
+[install-agent-grove-hooks.sh](.devcontainer/scripts/install-agent-grove-hooks.sh)
+(also run by `post-create.sh`) does the equivalent: copies `hook.mjs` to
+`~/.agent-grove/`, **merges** the hook entries into `~/.claude/settings.json`
+(your other settings and hooks are preserved; re-running never duplicates;
+an unparseable file is left untouched with a warning), and writes
+`~/.copilot/hooks/agent-grove.json`. Codex CLI isn't installed here, so it's
+skipped.
+
+If the extension or hooks are missing after a build (e.g. VS Code hadn't
+connected yet when `post-create.sh` ran), run `install-bundled-extensions.sh`
+then `install-agent-grove-hooks.sh` in the container terminal, and reload the
+window.
+
+**To update or add one:** download the new `.vsix` into
+`.devcontainer/extensions/`, remove the old one, regenerate the checksums
+(`cd .devcontainer/extensions && sha256sum *.vsix > SHA256SUMS`), and
+rebuild the container. Check the checksum against the one the publisher
+lists (for GitHub releases: `gh release view <tag> --json assets`) before
+committing it.
+
 ## Authentication
 
 Repo access and AI-model access are handled separately and by design use
@@ -300,22 +338,29 @@ long blocking `sleep` — a laptop that suspends mid-sleep can otherwise
 leave a stale, expired token sitting for however long it was asleep before
 noticing.
 
-[gh-app-token.sh](.devcontainer/scripts/gh-app-token.sh) — baked into the
-`workspace` image, run automatically on every container start via
-`postStartCommand` — picks that up two ways:
-- Configures a **git credential helper** that reads the token file live on
-  every single `git` operation (`push`/`pull`/`clone`/...) — no caching,
-  so it's never stale between polls.
-- Runs `gh auth login --with-token` once immediately, then launches a
-  detached background watcher (`setsid`, its own session — plain
-  `disown`/`nohup` weren't enough to survive the exec session closing, in
-  testing) that re-imports whenever the proxy mints a newer token. `gh`
-  itself (as opposed to plain git) caches the token rather than reading it
-  live, so this is what keeps `gh pr create`/`gh api`/etc. working across
-  a long-running container without needing a restart.
+Inside `workspace`, **both `git` and `gh` read that token file fresh on every
+call** — nothing caches it and nothing runs in the background to keep a copy
+fresh:
+- **`git`:** a credential helper, set up by
+  [gh-app-token.sh](.devcontainer/scripts/gh-app-token.sh) (run on every
+  container start via `postStartCommand`). It's URL-scoped to github.com, so
+  it's consulted before the helper VS Code forwards from your host and git
+  authenticates as the App, not your personal account.
+- **`gh`:** a thin wrapper installed as `/usr/local/bin/gh`
+  ([gh-wrapper.sh](.devcontainer/scripts/gh-wrapper.sh)) that exports the
+  token as `GH_TOKEN` and calls the real `/usr/bin/gh`. An explicit
+  `GH_TOKEN`/`GITHUB_TOKEN` in your environment wins, and with no App token
+  `gh` behaves normally.
 
-Re-run `gh-app-token.sh` by hand in the container terminal any time you
-want to force an immediate re-sync.
+Why not just `gh auth login`? That copies the token into
+`~/.config/gh/hosts.yml`, where it goes stale after ~1h unless something
+re-imports it. The first design used a background watcher for that, and it
+repeatedly wasn't running when needed, leaving `gh` failing with "token is
+invalid" even though the token file was valid. Reading live removes the
+failure mode instead of managing it. (`gh-app-token.sh` also clears any
+leftover cached `[bot]` login from that old design so `gh auth status` stays
+clean.) Don't run `gh auth login` in the container — it refuses while
+`GH_TOKEN` is set, by design.
 
 The private key never gets baked into any image or committed — it's
 bind-mounted read-only from the host path you set above, and an agent
@@ -347,16 +392,20 @@ fully de-identified the way GitHub repo access and Claude Code can be.
   most people mean by "Copilot"): sign in once via VS Code's Accounts icon
   or the Copilot Chat panel's "Sign in" prompt. Independent of `gh`'s auth
   store, so it never conflicts with the GitHub App token above.
-- **`gh copilot` CLI** (optional, terminal suggestions): this *does* share
-  `gh`'s auth store with the GitHub App token used for repo actions. If you
-  want both, `gh auth login` a second time as yourself and use
-  `gh auth switch` to toggle between your personal account (for
-  `gh copilot`) and the App token (for scripted repo actions).
-- **`copilot` CLI** (`@github/copilot` — the standalone agentic CLI, not
-  the `gh` extension above): installed via `postCreateCommand`, needs Node
-  22+ (set in `devcontainer.json`'s node feature). Has its own separate
-  auth — run `copilot` once and follow its login prompt; same "your
-  personal seat" caveat as the rest of Copilot applies.
+- **`copilot` CLI** (`@github/copilot` — the standalone agentic CLI):
+  installed by [post-create.sh](.devcontainer/scripts/post-create.sh), needs
+  Node 22+ (set in `devcontainer.json`'s node feature). Has its own separate
+  auth, independent of `gh`'s — run `copilot` once and follow its login
+  prompt; same "your personal seat" caveat as the rest of Copilot applies.
+  (The older `gh-copilot` extension isn't installed: it's superseded by this
+  CLI, and could never have installed at create time anyway since `gh` isn't
+  authenticated until `postStartCommand`.)
+
+If `claude` or `copilot` is "command not found" after a build,
+`post-create.sh` couldn't install them (it retries, then prints the reason
+and the manual command to the create log). Usually the proxy path wasn't
+ready yet — just run `npm install -g @anthropic-ai/claude-code
+@github/copilot` by hand.
 
 ## Extending the allowlist
 
