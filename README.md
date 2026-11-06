@@ -227,6 +227,23 @@ No changes needed anywhere else — not `docker-compose.yml`, not any
 script. To switch back to Podman, restore those two settings to `podman` /
 `podman-compose` (see step 3 above) and rebuild again.
 
+## WSL voice/audio support inside the dev container
+
+If you're running this from WSL and need voice-capable CLI tools (for example
+`/voice` flows), the `workspace` service mounts WSLg's `/mnt/wslg` read-only
+and exports:
+
+- `PULSE_SERVER=unix:/mnt/wslg/PulseServer`
+
+After rebuilding the container, verify audio forwarding from inside the
+container:
+
+```bash
+pactl info
+```
+
+If this prints PulseAudio server details, the container can reach WSLg audio.
+
 ## First-time setup
 
 1. `.env` is already created from step 4 above — go fill in the values you
