@@ -35,6 +35,9 @@ services:
       - gh-token-vol:/gh-token-vol:ro
       # Persist auth/config across container rebuilds (named volumes live in
       # Podman's storage, not in the repo).
+      # WSLg audio bridge for voice-capable CLIs in WSL-backed dev containers.
+      # Read-only mount; if WSLg isn't present this path can be empty/unused.
+      - /mnt/wslg:/mnt/wslg:ro
       - claude-config:/home/vscode/.claude
       - gh-config:/home/vscode/.config/gh
     command: sleep infinity

@@ -1,0 +1,13 @@
+# Files that run inside the Linux container must keep LF endings even when
+# checked out on Windows with core.autocrlf=true — a CRLF checkout turns
+# `#!/usr/bin/env bash` into `bash\r: No such file or directory`.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.conf text eol=lf
+.devcontainer/proxy/allowlist.txt text eol=lf
+# Read by `sha256sum -c` in the Dockerfile; a trailing \r breaks the filename match.
+SHA256SUMS text eol=lf
+
+# Never text-convert the bundled extensions: their SHA-256 is pinned in
+# .devcontainer/extensions/SHA256SUMS and the image build fails on a mismatch.
+*.vsix binary
