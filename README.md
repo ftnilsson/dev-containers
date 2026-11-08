@@ -73,6 +73,15 @@ v1, and requires Netavark/Aardvark 2.0 — all bundled in a current Podman
 machine image, so there is nothing to install separately. 5.8.x still
 works with this repo, including the step 3.5 workaround as written.
 
+**Windows/WSL needs a recent WSL kernel for Podman 6.** netavark 2.x's
+nftables rules use the `nft_fib_inet` kernel module, which older WSL kernels
+(e.g. 6.6.87.2, WSL 2.6.x) don't ship. Symptom: any container on a
+non-`internal` network fails to start with `netavark: nftables error: "nft"
+did not return successfully while applying ruleset` (the `internal: true`
+network still works, so only the proxy fails). Fix: run `wsl --update`, then
+`wsl --shutdown` and start the Podman machine again. Verified working with
+WSL 3.0.3 / kernel 6.18.54.1.
+
 **Upgrading from 5.x on Windows:** run `winget upgrade RedHat.Podman`
 (or update Podman Desktop), then check `podman version` shows the same
 major version for **Client** and **Server**. Podman only upgrades the
@@ -188,7 +197,8 @@ part of this repo and needs provisioning once per VM:
 > you can ignore this step (the watcher is then a harmless no-op). If the
 > proxy is unreachable, inspect `nft list ruleset` on the VM
 > (`podman machine ssh podman-machine-agentic`) and adapt the script to
-> the new table/chain — this has not been verified against netavark 2.0.
+> the new table/chain. Checked on Podman 6.1.4 (netavark 2.1): `workspace`
+> reaches `proxy` without the watcher, so it isn't needed there.
 
 ```bash
 podman machine ssh podman-machine-agentic -- 'cat > /root/.netfix.sh' <<'EOF'
@@ -266,10 +276,14 @@ script. To switch back to Podman, restore those two settings to `podman` /
 ## WSL voice/audio support inside the dev container
 
 If you're running this from WSL and need voice-capable CLI tools (for example
-`/voice` flows), the `workspace` service mounts WSLg's `/mnt/wslg` read-only
-and exports:
+`/voice` flows), the `workspace` service mounts only WSLg's PulseAudio socket
+(`/mnt/wslg/PulseServer`) at `/run/pulse/native`, read-only, and exports:
 
-- `PULSE_SERVER=unix:/mnt/wslg/PulseServer`
+- `PULSE_SERVER=unix:/run/pulse/native`
+
+Deliberately *not* the whole `/mnt/wslg`: that also contains the X11 and
+Wayland sockets (which would let the sandbox read your screen and keystrokes)
+and the WSLg system distro's filesystem.
 
 After rebuilding the container, verify audio forwarding from inside the
 container:
@@ -279,6 +293,18 @@ pactl info
 ```
 
 If this prints PulseAudio server details, the container can reach WSLg audio.
+
+The image also ships `arecord`, `sox`/`rec` and an ALSA→Pulse default
+(`/etc/asound.conf`), which is what Claude Code's `/voice` and similar
+dictation features record through. Quick mic test inside the container:
+
+```bash
+pactl list short sources   # should list RDPSource (the Windows mic)
+arecord -d 3 /tmp/t.wav && aplay /tmp/t.wav
+```
+
+If no source appears, check Windows Settings → Privacy → Microphone allows
+desktop apps, and run `wsl --update` / `wsl --shutdown` on the host.
 
 ## First-time setup
 

@@ -8,6 +8,18 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends jq \
  && rm -rf /var/lib/apt/lists/*
 
+# Audio capture for voice dictation (Claude Code /voice, Copilot CLI, etc.).
+# The container reaches WSLg's PulseAudio socket via PULSE_SERVER (see
+# devcontainer.json / docker-compose.yml). These are the client side:
+#   pulseaudio-utils    pactl/parec, for checking the connection
+#   alsa-utils          arecord, which voice CLIs shell out to
+#   libasound2-plugins  ALSA "pulse" plugin, so ALSA apps use PulseAudio
+#   sox + libsox-fmt-pulse  `rec` fallback recorder
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends pulseaudio-utils alsa-utils libasound2-plugins sox libsox-fmt-pulse \
+ && rm -rf /var/lib/apt/lists/* \
+ && printf 'pcm.!default { type pulse }\nctl.!default { type pulse }\n' > /etc/asound.conf
+
 # Sandbox tooling scripts, baked into the image rather than read from
 # /workspace — /workspace is intentionally just the workspace/ subdirectory
 # (see docker-compose.yml), not this whole repo, so .devcontainer/ (these
