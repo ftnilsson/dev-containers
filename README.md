@@ -66,6 +66,29 @@ something breaks, you know which layer it's in.
 - Linux: install `podman` via your package manager — no VM/machine step
   needed, it uses the host kernel directly.
 
+**Supported versions:** Podman **6.x** (tested target: 6.1.4). Podman 6
+removed the iptables firewall backend, CNI and slirp4netns (netavark
+2.0 + nftables + pasta only), dropped Windows 10, Intel Macs and cgroups
+v1, and requires Netavark/Aardvark 2.0 — all bundled in a current Podman
+machine image, so there is nothing to install separately. 5.8.x still
+works with this repo, including the step 3.5 workaround as written.
+
+**Upgrading from 5.x on Windows:** run `winget upgrade RedHat.Podman`
+(or update Podman Desktop), then check `podman version` shows the same
+major version for **Client** and **Server**. Podman only upgrades the
+VM's Podman when the machine is re-created, so for a 5.x→6.x move:
+
+```bash
+podman machine stop podman-machine-agentic
+podman machine rm podman-machine-agentic    # deletes the VM's volumes!
+podman machine init podman-machine-agentic
+podman machine start podman-machine-agentic
+```
+
+`rm` wipes the named volumes (`claude-config`, `gh-config`), so you'll
+need to log in to Claude Code and `gh` again, and re-do step 3.5 for the
+new VM.
+
 **Verify:** `podman info` should print engine info with no connection
 errors. If this doesn't work, nothing later in this guide will either — fix
 it here first.
@@ -155,6 +178,18 @@ watcher script has to live on the Podman machine VM itself (nftables state
 is VM-local, not something a repo file can reach into), so it's **not**
 part of this repo and needs provisioning once per VM:
 
+> **Podman 6 / netavark 2.0:** this watcher patches the *iptables-nft*
+> chain `ip filter NETAVARK_FORWARD`, which only exists on Podman 5.x.
+> Podman 6 uses native nftables, so that chain is gone. The script below
+> logs a clear message to `/tmp/netfix.log` on the VM when it can't find
+> it. **On Podman 6, first check whether you still need it:** start the
+> sandbox and run `curl -sI -x http://proxy:3128 https://api.github.com`
+> inside `workspace`. If that works, the bug is fixed in your version and
+> you can ignore this step (the watcher is then a harmless no-op). If the
+> proxy is unreachable, inspect `nft list ruleset` on the VM
+> (`podman machine ssh podman-machine-agentic`) and adapt the script to
+> the new table/chain — this has not been verified against netavark 2.0.
+
 ```bash
 podman machine ssh podman-machine-agentic -- 'cat > /root/.netfix.sh' <<'EOF'
 #!/bin/sh
@@ -167,6 +202,7 @@ while [ "$i" -lt 90 ]; do
   i=$((i + 1))
   sleep 1
 done
+echo "netfix: ip filter NETAVARK_FORWARD never appeared (Podman 6 / nftables backend?); nothing patched" >&2
 EOF
 podman machine ssh podman-machine-agentic -- chmod +x /root/.netfix.sh
 ```

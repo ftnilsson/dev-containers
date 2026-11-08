@@ -17,6 +17,14 @@ try {
         # for THIS "up" call to create it and patches it within ~1-2s, then
         # self-terminates. Adjust the machine name below if
         # `podman machine list` ever shows a different one.
+        # Podman 6 replaced the iptables backend with native nftables, so
+        # the chain the watcher patches no longer exists there; the watcher
+        # then logs that and exits without changing anything (see README
+        # step 3.5). Just surface which major version we're on.
+        $server = (& podman version --format '{{.Server.Version}}' 2>$null)
+        if ($server -and $server -match '^(\d+)\.' -and [int]$Matches[1] -ge 6) {
+            Write-Host "Podman ${server}: iptables-nft netfix watcher is expected to be a no-op (see README 3.5)."
+        }
         & podman machine ssh podman-machine-agentic -- "nohup /root/.netfix.sh >/tmp/netfix.log 2>&1 & disown; exit 0" 2>$null
     }
 } catch {
