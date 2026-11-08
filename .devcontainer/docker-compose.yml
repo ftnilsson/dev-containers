@@ -35,11 +35,13 @@ services:
       - gh-token-vol:/gh-token-vol:ro
       # Persist auth/config across container rebuilds (named volumes live in
       # Podman's storage, not in the repo).
-      # WSLg audio bridge for voice-capable CLIs in WSL-backed dev containers.
-      # Read-only mount; if WSLg isn't present this path can be empty/unused.
-      - /mnt/wslg:/mnt/wslg:ro
       - claude-config:/home/vscode/.claude
       - gh-config:/home/vscode/.config/gh
+      # WSLg audio bridge for voice-capable CLIs in WSL-backed dev containers.
+      # Mounts ONLY the PulseAudio socket, not all of /mnt/wslg: that folder
+      # also holds the X11/Wayland sockets (screen capture, keylogging) and
+      # the WSLg system distro's filesystem, none of which the sandbox needs.
+      - /mnt/wslg/PulseServer:/run/pulse/native:ro
     command: sleep infinity
 
   proxy:
@@ -52,6 +54,15 @@ services:
       - .env
     environment:
       GH_APP_PRIVATE_KEY_PATH: /run/secrets/github-app-key.pem
+    # No IPv6 route exists on these networks, but GitHub/Anthropic publish
+    # AAAA records, so with IPv6 on Squid races v6 against v4 (happy
+    # eyeballs): connects stall and Squid 5.7 repeatedly died with
+    # `FATAL: check failed: waiting()` in HappyConnOpener::noteWaitOver,
+    # taking in-flight git/HTTPS tunnels with it. With IPv6 off Squid
+    # skips AAAA lookups and never takes that path.
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: "1"
+      net.ipv6.conf.default.disable_ipv6: "1"
     volumes:
       - ./proxy/squid.conf:/etc/squid/squid.conf:ro
       - ./proxy/allowlist.txt:/etc/squid/allowlist.txt:ro

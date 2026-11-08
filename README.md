@@ -266,10 +266,14 @@ script. To switch back to Podman, restore those two settings to `podman` /
 ## WSL voice/audio support inside the dev container
 
 If you're running this from WSL and need voice-capable CLI tools (for example
-`/voice` flows), the `workspace` service mounts WSLg's `/mnt/wslg` read-only
-and exports:
+`/voice` flows), the `workspace` service mounts only WSLg's PulseAudio socket
+(`/mnt/wslg/PulseServer`) at `/run/pulse/native`, read-only, and exports:
 
-- `PULSE_SERVER=unix:/mnt/wslg/PulseServer`
+- `PULSE_SERVER=unix:/run/pulse/native`
+
+Deliberately *not* the whole `/mnt/wslg`: that also contains the X11 and
+Wayland sockets (which would let the sandbox read your screen and keystrokes)
+and the WSLg system distro's filesystem.
 
 After rebuilding the container, verify audio forwarding from inside the
 container:
@@ -279,6 +283,18 @@ pactl info
 ```
 
 If this prints PulseAudio server details, the container can reach WSLg audio.
+
+The image also ships `arecord`, `sox`/`rec` and an ALSA→Pulse default
+(`/etc/asound.conf`), which is what Claude Code's `/voice` and similar
+dictation features record through. Quick mic test inside the container:
+
+```bash
+pactl list short sources   # should list RDPSource (the Windows mic)
+arecord -d 3 /tmp/t.wav && aplay /tmp/t.wav
+```
+
+If no source appears, check Windows Settings → Privacy → Microphone allows
+desktop apps, and run `wsl --update` / `wsl --shutdown` on the host.
 
 ## First-time setup
 
