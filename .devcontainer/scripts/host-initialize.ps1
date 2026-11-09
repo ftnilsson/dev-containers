@@ -21,6 +21,23 @@ try {
         # the chain the watcher patches no longer exists there; the watcher
         # then logs that and exits without changing anything (see README
         # step 3.5). Just surface which major version we're on.
+        # Self-heal the Docker-API named pipe. After an unclean shutdown/sleep
+        # Podman can leave a stale unix socket in %TEMP%\podman; win-sshproxy
+        # then fails to bind ("Only one usage of each socket address"), the
+        # \\.\pipe\podman-machine-agentic pipe never appears, and
+        # podman-compose fails with "failed to connect to the docker API".
+        # `podman ps` still works (SSH fallback), which hides the problem.
+        # Fix: if the pipe is missing, drop the stale socket and restart the
+        # machine so the proxy re-binds. No-op when the pipe exists.
+        $machine = 'podman-machine-agentic'
+        if (-not (Test-Path "\\.\pipe\$machine")) {
+            Write-Host "Podman API pipe '$machine' missing - removing stale socket and restarting the machine..."
+            & podman machine stop $machine 2>&1 | Out-Null
+            Get-ChildItem (Join-Path $env:TEMP 'podman') -Filter '*-api.sock' -Force -ErrorAction SilentlyContinue |
+                Remove-Item -Force -ErrorAction SilentlyContinue
+            & podman machine start $machine 2>&1 | Out-Null
+        }
+
         $server = (& podman version --format '{{.Server.Version}}' 2>$null)
         if ($server -and $server -match '^(\d+)\.' -and [int]$Matches[1] -ge 6) {
             Write-Host "Podman ${server}: iptables-nft netfix watcher is expected to be a no-op (see README 3.5)."
