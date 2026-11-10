@@ -27,7 +27,7 @@
   "features": {
     // 22, not 20: the standalone GitHub Copilot CLI (@github/copilot, below)
     // requires Node 22+.
-    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+    "ghcr.io/devcontainers/features/node:2": { "version": "22" },
     "ghcr.io/devcontainers/features/python:1": {},
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
